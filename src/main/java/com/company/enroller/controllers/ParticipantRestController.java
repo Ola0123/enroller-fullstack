@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+
 import java.util.Collection;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @RestController
 @RequestMapping("/api/participants")
@@ -21,6 +23,11 @@ public class ParticipantRestController {
 
 	@Autowired
 	ParticipantService participantService;
+
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
+
 
 	@GetMapping(value = "")
 	public ResponseEntity<?> getParticipants(@RequestParam(value = "sortBy", defaultValue = "") String sortMode,
@@ -39,18 +46,36 @@ public class ParticipantRestController {
 		return new ResponseEntity<Participant>(participant, HttpStatus.OK);
 	}
 
-    @RequestMapping(value = "", method = RequestMethod.POST)
-    public ResponseEntity<?> addParticipant(@RequestBody Participant participant) {
-        if (participantService.findByLogin(participant.getLogin()) != null) {
-			return new ResponseEntity<String>(
-					"Unable to create. A participant with login " + participant.getLogin() + " already exist.",
-					HttpStatus.CONFLICT);
-        }
-        participantService.add(participant);
-        return new ResponseEntity<Participant>(participant, HttpStatus.CREATED);
-    }
 
-    @RequestMapping(value = "/{id}", method = RequestMethod.DELETE)
+	@RequestMapping(value = "", method = RequestMethod.POST)
+	public ResponseEntity<?> addParticipant(@RequestBody Participant participant) {
+
+		if (participant.getLogin() == null ||
+				participant.getLogin().trim().isEmpty() ||
+				participant.getPassword() == null ||
+				participant.getPassword().isEmpty()) {
+			return new ResponseEntity<>(
+					"Login and password are required",
+					HttpStatus.BAD_REQUEST);
+		}
+
+		if (participantService.findByLogin(participant.getLogin()) != null) {
+			return new ResponseEntity<>(
+					"Unable to create. A participant with login "
+							+ participant.getLogin() + " already exists.",
+					HttpStatus.CONFLICT);
+		}
+
+		String hashedPassword = passwordEncoder.encode(participant.getPassword());
+		participant.setPassword(hashedPassword);
+
+		participantService.add(participant);
+
+		return new ResponseEntity<>(participant, HttpStatus.CREATED);
+	}
+
+
+	@RequestMapping(value = "/{id}", method = RequestMethod.DELETE)
     public ResponseEntity<?> delete(@PathVariable("id") String login) {
         Participant participant = participantService.findByLogin(login);
         if (participant == null) {
